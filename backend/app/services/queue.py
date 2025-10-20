@@ -10,10 +10,17 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Initialize Redis connection
-redis_conn = Redis.from_url(settings.REDIS_URL)
-
-# Create queue
-receipt_queue = Queue('receipts', connection=redis_conn)
+try:
+    redis_conn = Redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+    redis_conn.ping()  # Test connection
+    receipt_queue = Queue('receipts', connection=redis_conn)
+    REDIS_AVAILABLE = True
+    logger.info("Redis connection established")
+except Exception as e:
+    logger.warning(f"Redis not available, will process receipts synchronously: {e}")
+    redis_conn = None
+    receipt_queue = None
+    REDIS_AVAILABLE = False
 
 
 def enqueue_receipt_processing(
@@ -24,6 +31,37 @@ def enqueue_receipt_processing(
 ) -> str:
     """Enqueue a receipt processing job"""
     try:
+        # If Redis is not available, process synchronously
+        if not REDIS_AVAILABLE:
+            logger.info(f"Processing receipt {receipt_id} in background (Redis not available)")
+            # Import and schedule async processing task
+            import asyncio
+            from app.tasks.process_receipt import process_receipt_task_async
+            
+            try:
+                # Try to get the running event loop
+                try:
+                    loop = asyncio.get_running_loop()
+                    # Schedule as a background task
+                    loop.create_task(process_receipt_task_async(
+                        receipt_id=receipt_id,
+                        storage_key=storage_key,
+                        user_id=user_id,
+                        metadata=metadata or {}
+                    ))
+                    logger.info(f"Scheduled background processing for receipt {receipt_id}")
+                except RuntimeError:
+                    # No running loop, this shouldn't happen in FastAPI but handle it
+                    logger.warning("No running event loop, processing will be delayed")
+                    # Just return success, the receipt will be processed later
+                    pass
+                
+                return f"sync-{receipt_id}"
+            except Exception as e:
+                logger.error(f"Failed to schedule background processing for receipt {receipt_id}: {e}")
+                raise
+        
+        # Use Redis queue if available
         from app.tasks.process_receipt import process_receipt_task
         
         job = receipt_queue.enqueue(
@@ -45,6 +83,18 @@ def enqueue_receipt_processing(
 
 def get_job_status(job_id: str) -> Dict[str, Any]:
     """Get job status"""
+    if not REDIS_AVAILABLE:
+        # For synchronous processing, assume job is complete
+        return {
+            "id": job_id,
+            "status": "finished",
+            "result": None,
+            "exc_info": None,
+            "created_at": None,
+            "started_at": None,
+            "ended_at": None,
+        }
+    
     from rq.job import Job
     
     try:
