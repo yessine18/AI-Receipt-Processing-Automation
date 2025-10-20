@@ -1,6 +1,6 @@
 # AI Receipt Processing Automation
 
-A fully-coded, self-hosted AI receipt processing system with automated OCR + Gemini-based parsing, secure object storage, and a PostgreSQL-backed audit trail.
+A fully-coded, self-hosted AI receipt processing system with automated Tesseract OCR + Gemini Vision API parsing, local file storage, PostgreSQL database, and Discord bot integration for seamless receipt management.
 
 ## Features
 
