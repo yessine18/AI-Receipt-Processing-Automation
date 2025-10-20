@@ -16,11 +16,17 @@ A fully-coded, self-hosted AI receipt processing system with automated OCR + Gem
 
 ## Architecture
 
-```
-Frontend (React) ──→ Backend API (FastAPI) ──→ Async Processing
-Discord Bot ────────→        ↓                         ↓
-                        PostgreSQL ←────────── Local Storage
-```
+### System Overview
+
+![Combined System Architecture](workflows/Combined%20System%20Architecture.png)
+
+### Web Application Workflow
+
+![Web App Workflow](workflows/Web%20App%20Workflow.png)
+
+### Discord Bot Workflow
+
+![Discord Bot Workflow](workflows/discord%20bot%20workflow.png)
 
 ## Tech Stack
 
